@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok2API - 请求看板</title>
+  <link rel="icon" href="/favicon.ico?v={{APP_VERSION}}">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link href="/static/css/app.css?v={{APP_VERSION}}" rel="stylesheet">
+  <style>
+    :root {
+      --bg-0: #f6f3ea;
+      --bg-1: #ece8dd;
+      --card: rgba(255, 255, 255, 0.9);
+      --line: #e2ddd2;
+      --ink: #1f2622;
+      --muted: #6f776f;
+      --brand: #1f786c;
+      --brand-soft: #e2f1ee;
+      --ok: #1b744d;
+      --warn: #9a6405;
+      --err: #a52f2f;
+      --shadow: 0 10px 30px rgba(37, 42, 38, 0.08);
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --anim-fast: 180ms;
+      --anim-mid: 280ms;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 16% 2%, rgba(31, 120, 108, 0.12), transparent 36%),
+        radial-gradient(circle at 88% 12%, rgba(174, 148, 92, 0.13), transparent 34%),
+        linear-gradient(170deg, var(--bg-0), var(--bg-1));
+      min-height: 100vh;
+    }
+
+    .board {
+      width: min(1240px, calc(100% - 28px));
+      margin: 16px auto 36px;
+      padding-bottom: 20px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      padding: 18px 18px 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(244, 247, 244, 0.82));
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
+      animation: riseIn var(--anim-mid) ease;
+    }
+
+    .title-wrap { display: grid; gap: 7px; }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .title-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--brand);
+      background: var(--brand-soft);
+      letter-spacing: .02em;
+    }
+
+    .title-chip::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--brand);
+      animation: pulseDot 1.9s ease-in-out infinite;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      font-weight: 720;
+    }
+
+    .page-sub {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn.btn-primary {
+      border: 0;
+      background: linear-gradient(120deg, #1f786c, #226857);
+      box-shadow: 0 6px 16px rgba(28, 107, 89, 0.28);
+      transition: transform var(--anim-fast) ease;
+    }
+
+    .btn.btn-primary:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.75);
+      color: #31403a;
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+      flex-wrap: wrap;
+    }
+
+    .rates {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+
+    .rate-pill {
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .rate-ok {
+      color: var(--ok);
+      background: #e8f7ef;
+      border-color: #c9ead9;
+    }
+
+    .rate-err {
+      color: var(--err);
+      background: #ffeceb;
+      border-color: #f2caca;
+    }
+
+    .panel {
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      animation: riseIn var(--anim-mid) ease;
+    }
+
+    .filters {
+      padding: 12px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field.wide { grid-column: span 2; }
+
+    .field label {
+      font-size: 11px;
+      color: #7a837a;
+      letter-spacing: .01em;
+    }
+
+    .filters .input,
+    .filters .select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+      transition: border-color var(--anim-fast) ease, box-shadow var(--anim-fast) ease;
+    }
+
+    .filters .input:focus,
+    .filters .select:focus {
+      outline: none;
+      border-color: #76a89f;
+      box-shadow: 0 0 0 3px rgba(31, 120, 108, 0.14);
+    }
+
+    .active-filters {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 50px;
+      align-items: center;
+    }
+
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid #dce6df;
+      background: #f3faf7;
+      color: #2e5c52;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .filter-pill.filter-muted {
+      border-color: #e6e1d7;
+      background: #f9f7f1;
+      color: #7d857d;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .stat-cell {
+      min-height: 92px;
+      border-radius: var(--radius-md);
+      border: 1px solid #ebe6db;
+      background: linear-gradient(170deg, #fff, #faf9f4);
+      padding: 13px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+      animation: riseIn var(--anim-mid) ease;
+    }
+
+    .stat-cell::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(31, 120, 108, 0.75), rgba(31, 120, 108, 0.12));
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #7e867f;
+      letter-spacing: .01em;
+    }
+
+    .stat-num {
+      margin-top: auto;
+      font-size: 26px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-weight: 720;
+      color: #263029;
+    }
+
+    .card {
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 680;
+      letter-spacing: -0.01em;
+    }
+
+    .subtle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid #ece8df;
+      border-radius: 12px;
+      background: #fff;
+      position: relative;
+    }
+
+    .table-wrap.is-loading::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #2e8778, transparent);
+      animation: loadingLine 1s linear infinite;
+      z-index: 4;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 740px;
+    }
+
+    th {
+      text-align: left;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #808a81;
+      letter-spacing: .02em;
+      background: #f7f5ee;
+      white-space: nowrap;
+      border-bottom: 1px solid #ede8de;
+    }
+
+    td {
+      padding: 9px 10px;
+      font-size: 12px;
+      color: #2c342f;
+      border-bottom: 1px solid #f2eee6;
+      white-space: nowrap;
+      vertical-align: middle;
+      max-width: 360px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    tbody tr:nth-child(even) td { background: #fcfbf8; }
+    tbody tr:hover td { background: #f1f8f6; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .mono { font-family: "Geist Mono", "Courier New", monospace; }
+
+    .path-text {
+      max-width: 410px;
+      display: inline-block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+    }
+
+    .cap-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .01em;
+      border: 1px solid transparent;
+      min-width: 54px;
+    }
+
+    .cap-text { color: #1f786c; background: #e2f1ee; border-color: #b9ddd6; }
+    .cap-image { color: #7a4c1d; background: #fff0dd; border-color: #ebd0ae; }
+    .cap-video { color: #194f7a; background: #e7f3ff; border-color: #c9dff8; }
+    .cap-voice { color: #7a2459; background: #fbe7f5; border-color: #edcce2; }
+    .cap-admin { color: #6a5a1d; background: #f6f1d4; border-color: #e5dba5; }
+    .cap-webui { color: #3b5f80; background: #e8eef7; border-color: #cdd9ec; }
+    .cap-models { color: #3f6d3f; background: #eaf6ea; border-color: #cae3ca; }
+    .cap-other { color: #666; background: #efefef; border-color: #d8d8d8; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .01em;
+      border: 1px solid transparent;
+    }
+
+    .s2 { color: var(--ok); background: #e8f7ef; border-color: #c9ead9; }
+    .s4 { color: var(--warn); background: #fff5e8; border-color: #f5dfbe; }
+    .s5 { color: var(--err); background: #ffeceb; border-color: #f2caca; }
+
+    .empty {
+      text-align: center;
+      color: #9aa29a;
+      padding: 20px 10px;
+    }
+
+    .error-box {
+      display: none;
+      margin-top: 6px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #8a2e2e;
+      border: 1px solid #efcccc;
+      background: #fff3f3;
+    }
+
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: .8; }
+      50% { transform: scale(1.25); opacity: 1; }
+    }
+
+    @keyframes loadingLine {
+      from { transform: translateX(-100%); }
+      to { transform: translateX(100%); }
+    }
+
+    @media (max-width: 1280px) {
+      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .field.wide { grid-column: span 3; }
+    }
+
+    @media (max-width: 980px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .top-grid { grid-template-columns: 1fr; }
+      .board { width: calc(100% - 18px); }
+      .hero { padding: 14px 14px 12px; }
+      .page-title { font-size: 24px; }
+    }
+
+    @media (max-width: 840px) {
+      .filters { grid-template-columns: 1fr; }
+      .field.wide { grid-column: span 1; }
+      .toolbar { width: 100%; justify-content: flex-start; }
+      .toolbar .btn { flex: 1; min-width: 120px; }
+      .table-wrap { border-radius: 10px; }
+      .path-text { max-width: 260px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="admin-header" data-active="/admin/dashboard"></div>
+
+<main class="admin-main board">
+  <section class="hero">
+    <div class="title-wrap">
+      <div class="title-row">
+        <span class="title-chip">实时概览</span>
+        <h1 class="page-title">请求看板</h1>
+      </div>
+      <div class="page-sub">聚焦模型与能力维度（文本/图像/视频/语音），弱化原始 Path 噪音。</div>
+      <div class="meta">
+        <span id="last-updated">最近更新时间: -</span>
+        <span id="auto-refresh">自动刷新: 开启 (20s)</span>
+        <span id="rows-loaded">最近请求条数: -</span>
+      </div>
+      <div class="rates">
+        <span id="rate-success" class="rate-pill rate-ok">成功率: -</span>
+        <span id="rate-error" class="rate-pill rate-err">错误率: -</span>
+      </div>
+      <div id="load-error" class="error-box"></div>
+    </div>
+
+    <div class="toolbar">
+      <button id="btn-refresh" class="btn btn-primary" style="height:34px">刷新</button>
+      <button id="btn-autorefresh" class="btn btn-ghost" style="height:34px">暂停自动刷新</button>
+      <button id="btn-clear" class="btn btn-ghost" style="height:34px">重置筛选</button>
+    </div>
+  </section>
+
+  <section class="panel filters">
+    <div class="field">
+      <label for="hours">时间范围</label>
+      <select id="hours" class="select">
+        <option value="1">最近 1 小时</option>
+        <option value="6">最近 6 小时</option>
+        <option value="24" selected>最近 24 小时</option>
+        <option value="72">最近 72 小时</option>
+        <option value="168">最近 7 天</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="status">状态过滤</label>
+      <select id="status" class="select">
+        <option value="all">全部状态</option>
+        <option value="2xx">2xx</option>
+        <option value="4xx">4xx</option>
+        <option value="5xx">5xx</option>
+        <option value="500">500</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="path">接口关键字</label>
+      <input id="path" class="input" placeholder="例如 /v1/responses">
+    </div>
+
+    <div class="field">
+      <label for="client_tag">客户端标识</label>
+      <input id="client_tag" class="input" placeholder="例如 ios-app">
+    </div>
+
+    <div class="field wide">
+      <label for="q">全文搜索</label>
+      <input id="q" class="input" placeholder="方法 / path / client / client_tag">
+    </div>
+  </section>
+
+  <section id="active-filters" class="panel active-filters"></section>
+
+  <section class="stat-grid">
+    <article class="stat-cell"><div class="stat-label">总请求</div><div class="stat-num" id="stat-total">-</div></article>
+    <article class="stat-cell"><div class="stat-label">成功</div><div class="stat-num" id="stat-success">-</div></article>
+    <article class="stat-cell"><div class="stat-label">错误</div><div class="stat-num" id="stat-error">-</div></article>
+    <article class="stat-cell"><div class="stat-label">P95 (ms)</div><div class="stat-num" id="stat-p95">-</div></article>
+    <article class="stat-cell"><div class="stat-label">唯一客户端</div><div class="stat-num" id="stat-clients">-</div></article>
+  </section>
+
+  <section class="top-grid">
+    <section class="panel card">
+      <div class="card-head">
+        <h2 class="card-title">能力分布 Top 10</h2>
+        <span class="subtle">文本/图像/视频/语音/管理</span>
+      </div>
+      <div id="capability-wrap" class="table-wrap">
+        <table>
+          <thead><tr><th>能力</th><th>Count</th><th>Error</th></tr></thead>
+          <tbody id="capability-body"><tr><td class="empty" colspan="3">暂无数据</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel card">
+      <div class="card-head">
+        <h2 class="card-title">模型分布 Top 10</h2>
+        <span class="subtle">按请求次数排序</span>
+      </div>
+      <div id="model-wrap" class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th>Count</th><th>Error</th></tr></thead>
+          <tbody id="model-body"><tr><td class="empty" colspan="3">暂无数据</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="panel card">
+    <div class="card-head">
+      <h2 class="card-title">最近请求</h2>
+      <span class="subtle">按时间倒序</span>
+    </div>
+    <div id="recent-wrap" class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>能力</th><th>Model</th><th>API</th><th>Status</th><th>Latency</th><th>ClientTag</th>
+          </tr>
+        </thead>
+        <tbody id="recent-body"><tr><td class="empty" colspan="7">暂无数据</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/static/js/i18n.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/auth.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/admin-header.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/footer.js?v={{APP_VERSION}}"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const AUTO_REFRESH_MS = 20000;
+  const state = { loading: false, timer: null, autoRefresh: true };
+
+  function fmt(v) {
+    if (v === null || v === undefined) return '-';
+    if (typeof v === 'number' && Number.isFinite(v)) return new Intl.NumberFormat('zh-CN').format(v);
+    return String(v);
+  }
+
+  function esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+  }
+
+  function statusClass(code) {
+    if (code >= 500) return 's5';
+    if (code >= 400) return 's4';
+    return 's2';
+  }
+
+  function capClass(capability) {
+    const c = String(capability || 'other').toLowerCase();
+    if (['text', 'image', 'video', 'voice', 'admin', 'webui', 'models', 'other'].includes(c)) {
+      return `cap-${c}`;
+    }
+    return 'cap-other';
+  }
+
+  function capLabel(capability) {
+    const map = {
+      text: '文本',
+      image: '图像',
+      video: '视频',
+      voice: '语音',
+      admin: '管理',
+      webui: 'WebUI',
+      models: '模型元数据',
+      other: '其它',
+    };
+    const c = String(capability || 'other').toLowerCase();
+    return map[c] || '其它';
+  }
+
+  function rateOf(part, total) {
+    if (!total) return '-';
+    return `${((part / total) * 100).toFixed(1)}%`;
+  }
+
+  function readFilters() {
+    return {
+      hours: Number($('hours').value || 24),
+      status: $('status').value || 'all',
+      path: $('path').value.trim(),
+      client_tag: $('client_tag').value.trim(),
+      q: $('q').value.trim(),
+      limit: 200,
+    };
+  }
+
+  function clearFilters() {
+    $('hours').value = '24';
+    $('status').value = 'all';
+    $('path').value = '';
+    $('client_tag').value = '';
+    $('q').value = '';
+  }
+
+  function showError(msg) {
+    const el = $('load-error');
+    if (!msg) {
+      el.style.display = 'none';
+      el.textContent = '';
+      return;
+    }
+    el.style.display = 'block';
+    el.textContent = msg;
+  }
+
+  function markUpdated() {
+    $('last-updated').textContent = `最近更新时间: ${new Date().toLocaleString('zh-CN', { hour12: false })}`;
+  }
+
+  function updateAutoRefreshUI() {
+    $('btn-autorefresh').textContent = state.autoRefresh ? '暂停自动刷新' : '恢复自动刷新';
+    $('auto-refresh').textContent = state.autoRefresh ? '自动刷新: 开启 (20s)' : '自动刷新: 已暂停';
+  }
+
+  function showLoading(loading) {
+    ['capability-wrap', 'model-wrap', 'recent-wrap'].forEach((id) => $(id).classList.toggle('is-loading', loading));
+  }
+
+  function startTimer() {
+    if (state.timer) clearInterval(state.timer);
+    state.timer = null;
+    if (state.autoRefresh) {
+      state.timer = setInterval(loadBoard, AUTO_REFRESH_MS);
+    }
+  }
+
+  function renderFilterPills(filters) {
+    const pills = [];
+    pills.push(`<span class="filter-pill">时间 ${esc(filters.hours)}h</span>`);
+    if (filters.status !== 'all') pills.push(`<span class="filter-pill">状态 ${esc(filters.status)}</span>`);
+    if (filters.path) pills.push(`<span class="filter-pill">接口 ${esc(filters.path)}</span>`);
+    if (filters.client_tag) pills.push(`<span class="filter-pill">ClientTag ${esc(filters.client_tag)}</span>`);
+    if (filters.q) pills.push(`<span class="filter-pill">搜索 ${esc(filters.q)}</span>`);
+    pills.push(`<span class="filter-pill filter-muted">最多 ${esc(filters.limit)} 条</span>`);
+    $('active-filters').innerHTML = pills.join('');
+  }
+
+  async function apiGet(path) {
+    const key = await adminKey.get();
+    if (!key || !await verifyKey(ADMIN_API + '/verify', key).catch(() => false)) {
+      location.href = '/admin/login';
+      throw new Error('unauthorized');
+    }
+    const res = await fetch(ADMIN_API + path, { headers: { Authorization: `Bearer ${key}` } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function renderSummary(summary, recentRows) {
+    const total = Number(summary.total || 0);
+    const success = Number(summary.success || 0);
+    const error = Number(summary.error || 0);
+
+    $('stat-total').textContent = fmt(total);
+    $('stat-success').textContent = fmt(success);
+    $('stat-error').textContent = fmt(error);
+    $('stat-p95').textContent = fmt(summary.p95_latency_ms);
+    $('stat-clients').textContent = fmt(summary.unique_clients);
+
+    $('rate-success').textContent = `成功率: ${rateOf(success, total)}`;
+    $('rate-error').textContent = `错误率: ${rateOf(error, total)}`;
+    $('rows-loaded').textContent = `最近请求条数: ${fmt(recentRows?.length || 0)}`;
+  }
+
+  function renderRows(bodyId, rows, cols, mapper) {
+    const body = $(bodyId);
+    if (!rows || !rows.length) {
+      body.innerHTML = `<tr><td class="empty" colspan="${cols}">暂无数据</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(mapper).join('');
+  }
+
+  function renderCapabilities(rows) {
+    renderRows('capability-body', rows.slice(0, 10), 3, (r) => `
+      <tr>
+        <td><span class="cap-badge ${capClass(r.capability)}">${capLabel(r.capability)}</span></td>
+        <td>${fmt(r.count)}</td>
+        <td>${fmt(r.error)}</td>
+      </tr>
+    `);
+  }
+
+  function renderModels(rows) {
+    renderRows('model-body', rows.slice(0, 10), 3, (r) => `
+      <tr>
+        <td class="mono"><span class="path-text" title="${esc(r.model || '-')}">${esc(r.model || '-')}</span></td>
+        <td>${fmt(r.count)}</td>
+        <td>${fmt(r.error)}</td>
+      </tr>
+    `);
+  }
+
+  function renderRecent(rows) {
+    renderRows('recent-body', rows, 7, (r) => {
+      const status = Number(r.status || 0);
+      return `
+        <tr>
+          <td class="mono">${esc(r.ts)}</td>
+          <td><span class="cap-badge ${capClass(r.capability)}">${capLabel(r.capability)}</span></td>
+          <td class="mono"><span class="path-text" title="${esc(r.model || '-')}">${esc(r.model || '-')}</span></td>
+          <td class="mono"><span class="path-text" title="${esc(r.path || '-')}">${esc(r.path || '-')}</span></td>
+          <td><span class="status ${statusClass(status)}">${esc(status || '-')}</span></td>
+          <td>${r.latency_ms == null ? '-' : esc(r.latency_ms + ' ms')}</td>
+          <td class="mono">${esc(r.client_tag || '-')}</td>
+        </tr>
+      `;
+    });
+  }
+
+  async function loadBoard() {
+    if (state.loading) return;
+    state.loading = true;
+    $('btn-refresh').disabled = true;
+    showError('');
+    showLoading(true);
+
+    try {
+      const f = readFilters();
+      renderFilterPills(f);
+
+      const qs = new URLSearchParams();
+      Object.entries(f).forEach(([k, v]) => {
+        if (v === '' || v === null || v === undefined) return;
+        qs.set(k, String(v));
+      });
+
+      const data = await apiGet(`/dashboard/requests?${qs.toString()}`);
+      renderSummary(data.summary || {}, data.recent || []);
+      renderCapabilities(data.by_capability || []);
+      renderModels(data.by_model || []);
+      renderRecent(data.recent || []);
+      markUpdated();
+    } catch (e) {
+      console.error(e);
+      showError(`加载失败: ${e?.message || e}`);
+    } finally {
+      state.loading = false;
+      $('btn-refresh').disabled = false;
+      showLoading(false);
+    }
+  }
+
+  $('btn-refresh').addEventListener('click', loadBoard);
+
+  $('btn-autorefresh').addEventListener('click', () => {
+    state.autoRefresh = !state.autoRefresh;
+    updateAutoRefreshUI();
+    startTimer();
+  });
+
+  $('btn-clear').addEventListener('click', () => {
+    clearFilters();
+    loadBoard();
+  });
+
+  ['hours', 'status'].forEach((id) => {
+    $(id).addEventListener('change', loadBoard);
+  });
+
+  ['path', 'client_tag', 'q'].forEach((id) => {
+    $(id).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loadBoard();
+    });
+  });
+
+  (async () => {
+    updateAutoRefreshUI();
+    renderFilterPills(readFilters());
+    await loadBoard();
+    startTimer();
+    await renderSiteFooter?.();
+  })();
+</script>
+</body>
+</html>
